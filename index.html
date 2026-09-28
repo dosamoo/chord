@@ -1,0 +1,515 @@
+
+
+```html
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>화성학 리콜 트레이너 (3-Tier Keyboard)</title>
+    <style>
+        :root {
+            --bg: #f4f6f8; --card: #ffffff; --text: #2d3748; 
+            --accent: #4c51bf; --accent-hover: #434190;
+            --correct: #48bb78; --wrong: #f56565;
+            --gray: #e2e8f0; --gray-dark: #a0aec0;
+        }
+        * { box-sizing: border-box; }
+        
+        html, body { 
+            margin: 0; padding: 0; height: 100dvh; overflow: hidden; 
+            background: var(--bg); color: var(--text); user-select: none; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+        }
+        
+        .container { 
+            display: flex; flex-direction: column; width: 100%; height: 100%; 
+            max-width: 800px; margin: 0 auto; padding: 10px; gap: 8px; 
+        }
+        
+        /* 1. Header */
+        .header { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 4px; }
+        h1 { font-size: 1.1rem; margin: 0; }
+        .header-right { display: flex; gap: 8px; align-items: center; }
+        .btn-sound { background: none; border: none; font-size: 0.85rem; cursor: pointer; color: var(--text); font-weight: bold; padding: 4px; }
+        .stats { font-size: 0.85rem; font-weight: bold; color: var(--accent); background: #ebf4ff; padding: 4px 10px; border-radius: 20px; }
+        
+        /* 2. Settings (가로 스크롤 가능) */
+        .settings { 
+            flex-shrink: 0; background: var(--card); padding: 8px 12px; border-radius: 10px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; gap: 15px;
+            overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+        }
+        .settings::-webkit-scrollbar { display: none; }
+        .settings-col { display: flex; flex-direction: column; gap: 4px; min-width: max-content; }
+        .settings-col.border-left { border-left: 1px solid var(--gray); padding-left: 15px; }
+        .btn-group { display: flex; gap: 4px; }
+        .toggle-btn { padding: 5px 8px; border: 1px solid var(--gray); background: white; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: 0.2s; }
+        .toggle-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+        
+        /* 3. Stage */
+        .stage { 
+            flex-grow: 1; min-height: 0; background: var(--card); padding: 12px; border-radius: 10px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; text-align: center; transition: background-color 0.2s;
+        }
+        .key-display { font-size: 0.85rem; color: var(--gray-dark); font-weight: 600; }
+        .chord-display { font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; margin: 2px 0; line-height: 1; }
+        .chord-type { font-size: 0.85rem; color: var(--accent); font-weight: bold; }
+        
+        .slots { display: flex; justify-content: center; gap: 6px; margin-top: 10px; }
+        .slot { width: 38px; height: 38px; border: 2px dashed var(--gray-dark); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: bold; color: var(--text); background: #fafafa; }
+        .slot.filled { border-style: solid; border-color: var(--accent); background: #ebf4ff; color: var(--accent); }
+        .input-hint { font-size: 0.75rem; color: var(--gray-dark); margin-top: 6px; font-weight: 600; }
+
+        .feedback-area { margin-top: 8px; height: 42px; display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%; }
+        .feedback { display: none; font-size: 0.9rem; font-weight: bold; line-height: 1.2; animation: pop 0.2s ease; }
+        @keyframes pop { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .btn { padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: bold; cursor: pointer; width: 180px; }
+        
+        /* 4. Keyboard (3줄 분할) */
+        .keyboard-wrapper { 
+            flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; width: 100%; 
+        }
+        .piano-row { display: flex; flex-direction: column; position: relative; }
+        .row-label { font-size: 0.7rem; font-weight: bold; color: var(--gray-dark); margin-bottom: 2px; padding-left: 2px; }
+        
+        .keys-container { display: flex; position: relative; height: 55px; width: 100%; }
+        .key { 
+            cursor: pointer; display: flex; align-items: flex-end; justify-content: center; 
+            padding-bottom: 4px; font-size: 0.75rem; font-weight: bold; border-radius: 0 0 4px 4px; 
+            touch-action: manipulation; transition: background-color 0.1s; user-select: none; 
+        }
+        .key.white { 
+            flex: 1; background: white; border: 1px solid #cbd5e0; color: #718096; z-index: 1; height: 100%; 
+        }
+        .key.black { 
+            width: 26px; background: #2d3748; height: 60%; margin-left: -13px; margin-right: -13px; 
+            z-index: 2; color: white; border-radius: 0 0 3px 3px; border: none; 
+        }
+        
+        .key.active-input.white { background: var(--accent); color: white; border-color: var(--accent); }
+        .key.active-input.black { background: var(--accent); color: white; }
+
+        @media (min-height: 700px) {
+            .keys-container { height: 65px; }
+            .chord-display { font-size: 2.6rem; }
+            .slot { width: 42px; height: 42px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>코드톤 트레이너</h1>
+        <div class="header-right">
+            <button id="btn-sound" class="btn-sound">🔊 켜짐</button>
+            <div class="stats">🔥 정답: <span id="streak">0</span></div>
+        </div>
+    </div>
+
+    <div class="settings">
+        <div class="settings-col">
+            <span style="font-size:0.75rem; color:#777;">조성</span>
+            <div class="btn-group" id="key-filters"></div>
+        </div>
+        <div class="settings-col border-left">
+            <span style="font-size:0.75rem; color:#777;">난이도</span>
+            <div class="btn-group">
+                <button class="toggle-btn active" id="mode-triad">Triad</button>
+                <button class="toggle-btn active" id="mode-7th">7th</button>
+            </div>
+        </div>
+        <div class="settings-col border-left">
+            <span style="font-size:0.75rem; color:#777;">보이싱</span>
+            <div class="btn-group">
+                <button class="toggle-btn active" data-voice="close">밀집</button>
+                <button class="toggle-btn" data-voice="open">오픈</button>
+            </div>
+        </div>
+        <div class="settings-col border-left">
+            <span style="font-size:0.75rem; color:#777;">자리바꿈</span>
+            <div class="btn-group">
+                <button class="toggle-btn active" data-inv="0">기본</button>
+                <button class="toggle-btn" data-inv="1">1전위</button>
+                <button class="toggle-btn" data-inv="2">2전위</button>
+                <button class="toggle-btn" data-inv="3">3전위</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="stage" id="stage">
+        <div class="key-display" id="display-key">Key of C Major</div>
+        <div class="chord-display" id="display-chord">Dm7</div>
+        <div class="chord-type" id="display-roman">ii7</div>
+        
+        <div class="slots" id="slots"></div>
+        <div class="input-hint">※ 베이스(가장 아래 음)부터 차례대로 입력</div>
+
+        <div class="feedback-area">
+            <div class="feedback" id="feedback"></div>
+            <button class="btn" id="next-btn" style="display: none;">다음 문제 (Enter)</button>
+        </div>
+    </div>
+
+    <!-- 3줄 건반 영역 -->
+    <div class="keyboard-wrapper" id="piano-wrapper"></div>
+</div>
+
+<script>
+    let audioCtx = null;
+    let isSoundOn = true;
+
+    function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function toggleSound() {
+        isSoundOn = !isSoundOn;
+        document.getElementById('btn-sound').innerText = isSoundOn ? '🔊 켜짐' : '🔇 꺼짐';
+        if (isSoundOn) initAudio();
+    }
+
+    function playNote(midi, duration = 0.5) {
+        if (!isSoundOn) return;
+        initAudio();
+        const freq = 440 * Math.pow(2, (midi - 69) / 12);
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.start(now);
+        osc.stop(now + duration);
+    }
+
+    function playChord(midis) {
+        if (!isSoundOn) return;
+        midis.forEach(m => playNote(m, 1.5));
+    }
+
+    const keys = ["C", "G", "D", "A", "E", "B", "F", "Bb", "Eb", "Ab", "Db", "Gb"];
+    const diatonicPattern = [
+        { num: 'I', type: 'M', sev: 'M7', step: 0 },
+        { num: 'ii', type: 'm', sev: 'm7', step: 2 },
+        { num: 'iii', type: 'm', sev: 'm7', step: 4 },
+        { num: 'IV', type: 'M', sev: 'M7', step: 5 },
+        { num: 'V', type: 'M', sev: '7', step: 7 },
+        { num: 'vi', type: 'm', sev: 'm7', step: 9 },
+        { num: 'vii°', type: 'dim', sev: 'm7b5', step: 11 }
+    ];
+    
+    const spellings = {
+        'C':  ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],
+        'F':  ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'],
+        'Bb': ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'],
+        'Eb': ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'],
+        'Ab': ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'],
+        'Db': ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'],
+        'Gb': ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B']
+    };
+    function getSpelling(pitch, key) { return (spellings[key] || spellings['C'])[pitch % 12]; }
+    function getRootPitch(key) { return {'C':0,'G':7,'D':2,'A':9,'E':4,'B':11,'F':5,'Bb':10,'Eb':3,'Ab':8,'Db':1,'Gb':6}[key]; }
+
+    let activeKeys = ["C", "G", "D", "F"]; 
+    let useTriad = true;
+    let use7th = true;
+    let activeInversions = [0]; 
+    let activeVoicings = ["close"]; 
+    
+    let currentQuestion = null;
+    let currentInput = []; 
+    let expectedPitches = []; 
+    let expectedMidisForChord = []; 
+    
+    let streak = 0;
+    let errorPool = []; 
+    let isProcessing = false;
+
+    function init() {
+        renderSettings();
+        renderPiano();
+        setupListeners();
+        generateQuestion();
+    }
+
+    function renderSettings() {
+        const filterContainer = document.getElementById('key-filters');
+        keys.forEach(k => {
+            const btn = document.createElement('button');
+            btn.className = `toggle-btn ${activeKeys.includes(k) ? 'active' : ''}`;
+            btn.innerText = k;
+            btn.onclick = () => {
+                if(activeKeys.includes(k) && activeKeys.length > 1) {
+                    activeKeys = activeKeys.filter(x => x !== k); btn.classList.remove('active');
+                } else if (!activeKeys.includes(k)) {
+                    activeKeys.push(k); btn.classList.add('active');
+                }
+            };
+            filterContainer.appendChild(btn);
+        });
+
+        document.getElementById('mode-triad').onclick = (e) => { if(use7th) { useTriad = !useTriad; e.target.classList.toggle('active'); } };
+        document.getElementById('mode-7th').onclick = (e) => { if(useTriad) { use7th = !use7th; e.target.classList.toggle('active'); } };
+
+        document.querySelectorAll('[data-voice]').forEach(btn => {
+            btn.onclick = (e) => {
+                const val = e.target.dataset.voice;
+                if(activeVoicings.includes(val) && activeVoicings.length > 1) {
+                    activeVoicings = activeVoicings.filter(x => x !== val); e.target.classList.remove('active');
+                } else if (!activeVoicings.includes(val)) {
+                    activeVoicings.push(val); e.target.classList.add('active');
+                }
+            };
+        });
+
+        document.querySelectorAll('[data-inv]').forEach(btn => {
+            btn.onclick = (e) => {
+                const val = parseInt(e.target.dataset.inv);
+                if(activeInversions.includes(val) && activeInversions.length > 1) {
+                    activeInversions = activeInversions.filter(x => x !== val); e.target.classList.remove('active');
+                } else if (!activeInversions.includes(val)) {
+                    activeInversions.push(val); e.target.classList.add('active');
+                }
+            };
+        });
+    }
+
+    /* 3줄 건반 생성 (C3~B3 / C4~B4 / C5~C6) */
+    function renderPiano() {
+        const wrapper = document.getElementById('piano-wrapper');
+        wrapper.innerHTML = '';
+        
+        const octaveRanges = [
+            { label: '3 Octave (C3~B3)', start: 48, end: 59 },
+            { label: '4 Octave (C4~B4)', start: 60, end: 71 },
+            { label: '5 Octave (C5~C6)', start: 72, end: 84 }
+        ];
+
+        octaveRanges.forEach(range => {
+            const rowDiv = document.createElement('div');
+            rowDiv.className = 'piano-row';
+
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'row-label';
+            labelDiv.innerText = range.label;
+            rowDiv.appendChild(labelDiv);
+
+            const keysContainer = document.createElement('div');
+            keysContainer.className = 'keys-container';
+
+            for(let midi = range.start; midi <= range.end; midi++) {
+                const pitch = midi % 12;
+                const isBlack = [1, 3, 6, 8, 10].includes(pitch);
+                const key = document.createElement('div');
+                key.className = `key ${isBlack ? 'black' : 'white'}`;
+                key.dataset.pitch = pitch;
+                key.dataset.midi = midi;
+                key.id = `key-${midi}`;
+
+                if(!isBlack) {
+                    key.innerText = (pitch === 0) ? `C${Math.floor(midi/12)-1}` : '';
+                }
+
+                key.onmousedown = (e) => { e.preventDefault(); handleInput(pitch, midi); };
+                key.ontouchstart = (e) => { e.preventDefault(); handleInput(pitch, midi); };
+
+                keysContainer.appendChild(key);
+            }
+            rowDiv.appendChild(keysContainer);
+            wrapper.appendChild(rowDiv);
+        });
+    }
+
+    function setupListeners() {
+        document.getElementById('btn-sound').onclick = toggleSound;
+        document.addEventListener('keydown', (e) => {
+            if(e.key === 'Enter' && document.getElementById('next-btn').style.display !== 'none') {
+                generateQuestion();
+            }
+        });
+        document.getElementById('next-btn').onclick = generateQuestion;
+        document.body.addEventListener('mousedown', initAudio, { once: true });
+        document.body.addEventListener('touchstart', initAudio, { once: true });
+    }
+
+    function generateQuestion() {
+        isProcessing = false;
+        currentInput = [];
+        
+        document.getElementById('feedback').style.display = 'none';
+        document.getElementById('next-btn').style.display = 'none';
+        document.getElementById('stage').style.backgroundColor = 'var(--card)';
+
+        if (errorPool.length > 0 && Math.random() < 0.3) {
+            currentQuestion = errorPool.splice(Math.floor(Math.random() * errorPool.length), 1)[0];
+        } else {
+            const key = activeKeys[Math.floor(Math.random() * activeKeys.length)];
+            const degree = diatonicPattern[Math.floor(Math.random() * 7)];
+            
+            let modes = [];
+            if(useTriad) modes.push('triad');
+            if(use7th) modes.push('7th');
+            const mode = modes[Math.floor(Math.random() * modes.length)];
+            
+            let validInvs = activeInversions.filter(i => mode === '7th' || i < 3);
+            if(validInvs.length === 0) validInvs = [0];
+            const inv = validInvs[Math.floor(Math.random() * validInvs.length)];
+
+            const voicing = activeVoicings[Math.floor(Math.random() * activeVoicings.length)];
+
+            currentQuestion = { key, degree, mode, inv, voicing };
+        }
+
+        const q = currentQuestion;
+        const keyRoot = getRootPitch(q.key);
+        const chordRoot = (keyRoot + q.degree.step) % 12;
+        
+        let intervals = [];
+        if(q.degree.type === 'M') intervals = [0, 4, 7];
+        if(q.degree.type === 'm') intervals = [0, 3, 7];
+        if(q.degree.type === 'dim') intervals = [0, 3, 6];
+        if(q.mode === '7th') {
+            if(q.degree.sev === 'M7') intervals.push(11);
+            if(q.degree.sev === 'm7' || q.degree.sev === '7' || q.degree.sev === 'm7b5') intervals.push(10);
+        }
+
+        let chordMidis = intervals.map(i => 60 + chordRoot + i);
+        
+        for(let i = 0; i < q.inv; i++) {
+            const shifted = chordMidis.shift();
+            chordMidis.push(shifted + 12);
+        }
+
+        if (q.voicing === 'open' && chordMidis.length >= 3) {
+            chordMidis[1] += 12;
+            chordMidis.sort((a, b) => a - b);
+        }
+
+        // 출제 음역대를 C3(48) ~ C6(84) 범위 안으로 보정
+        while (Math.max(...chordMidis) > 84) {
+            chordMidis = chordMidis.map(m => m - 12);
+        }
+        while (Math.min(...chordMidis) < 48) {
+            chordMidis = chordMidis.map(m => m + 12);
+        }
+
+        expectedMidisForChord = chordMidis;
+        expectedPitches = chordMidis.map(m => m % 12);
+        
+        const rootName = getSpelling(chordRoot, q.key);
+        const bassName = getSpelling(expectedPitches[0], q.key);
+        const chordSuffix = q.mode === '7th' ? q.degree.sev.replace('M7','maj7') : q.degree.type.replace('M','');
+        
+        let chordDisplay = `${rootName}${chordSuffix}`;
+        if (q.inv > 0 || q.voicing === 'open') {
+            chordDisplay += `/${bassName}`;
+        }
+
+        let romanDisplay = q.mode === '7th' ? `${q.degree.num}7` : q.degree.num;
+        let invLabel = q.inv === 0 ? "기본자리" : `${q.inv}전위`;
+        let voicingLabel = q.voicing === 'open' ? 'Open' : 'Close';
+
+        document.getElementById('display-key').innerText = `Key of ${q.key} Major`;
+        document.getElementById('display-chord').innerText = chordDisplay;
+        document.getElementById('display-roman').innerText = `${romanDisplay} (${invLabel} / ${voicingLabel})`;
+
+        const slotsDiv = document.getElementById('slots');
+        slotsDiv.innerHTML = '';
+        for(let i=0; i<expectedPitches.length; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'slot';
+            slotsDiv.appendChild(slot);
+        }
+        
+        updateUI();
+    }
+
+    function handleInput(pitch, absoluteMidi) {
+        if(isProcessing) return;
+
+        playNote(absoluteMidi, 0.5);
+
+        const existingIndex = currentInput.indexOf(absoluteMidi);
+        if(existingIndex > -1) {
+            currentInput.splice(existingIndex, 1);
+            updateUI();
+            return;
+        }
+
+        if(currentInput.length >= expectedPitches.length) return;
+
+        currentInput.push(absoluteMidi);
+        updateUI();
+
+        if(currentInput.length === expectedPitches.length) {
+            isProcessing = true;
+            checkAnswer();
+        }
+    }
+
+    function updateUI() {
+        const slots = document.getElementById('slots').children;
+        for(let i=0; i<slots.length; i++) {
+            if(i < currentInput.length) {
+                slots[i].innerText = getSpelling(currentInput[i] % 12, currentQuestion.key);
+                slots[i].classList.add('filled');
+            } else {
+                slots[i].innerText = '';
+                slots[i].classList.remove('filled');
+            }
+        }
+
+        document.querySelectorAll('.key').forEach(k => {
+            if(currentInput.includes(parseInt(k.dataset.midi))) {
+                k.classList.add('active-input');
+            } else {
+                k.classList.remove('active-input');
+            }
+        });
+    }
+
+    function checkAnswer() {
+        const isCorrect = expectedPitches.every((val, index) => val === (currentInput[index] % 12));
+        
+        const feedback = document.getElementById('feedback');
+        const stage = document.getElementById('stage');
+        feedback.style.display = 'block';
+
+        if(isCorrect) {
+            streak++;
+            document.getElementById('streak').innerText = streak;
+            stage.style.backgroundColor = '#f0fdf4'; 
+            feedback.innerHTML = '🎉 퍼펙트!';
+            feedback.style.color = 'var(--correct)';
+            
+            playChord(expectedMidisForChord);
+            
+            setTimeout(generateQuestion, 1400); 
+        } else {
+            streak = 0;
+            document.getElementById('streak').innerText = streak;
+            errorPool.push(currentQuestion);
+            stage.style.backgroundColor = '#fef2f2'; 
+            
+            const expectedNames = expectedPitches.map(p => getSpelling(p, currentQuestion.key)).join(' ➔ ');
+            feedback.innerHTML = `❌ 순서나 음이 틀렸습니다.<br><span style="font-size:0.8rem; color:#777; font-weight:normal; margin-top:2px; display:block;">정답 순서: <b>${expectedNames}</b></span>`;
+            feedback.style.color = 'var(--wrong)';
+            
+            document.getElementById('next-btn').style.display = 'block';
+        }
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
+
+```
